@@ -3,17 +3,17 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>文字加密伪装工具</title>
+  <title>文字加密伪装工具-加强版</title>
   <style>
     * { box-sizing: border-box; }
 
     body {
       margin: 0;
-      padding: 30px 30px;
+      padding: 30px;
       font-family: "Microsoft YaHei", Arial, sans-serif;
       background: linear-gradient(135deg, #0f172a, #1e293b);
       color: #111827;
-     height: 100vh;
+      min-height: 100vh;
     }
 
     .container {
@@ -22,21 +22,17 @@
       border-radius: 18px;
       padding: 26px;
       box-shadow: 0 20px 55px rgba(0,0,0,0.35);
-     height: 100%;
+      min-height: calc(100vh - 60px);
     }
 
-    h1 {
-      text-align: center;
-      margin: 0 0 10px;
-      font-size: 30px;
-    }
+    h1 { text-align: center; margin: 0 0 10px; font-size: 30px; }
 
     .desc {
       text-align: center;
       color: #6b7280;
       line-height: 1.8;
       margin-bottom: 24px;
-     display: none;
+      display: none;
     }
 
     label {
@@ -84,10 +80,7 @@
       transition: 0.2s;
     }
 
-    button:hover {
-      transform: translateY(-1px);
-      opacity: 0.92;
-    }
+    button:hover { transform: translateY(-1px); opacity: 0.92; }
 
     .btn-encrypt { background: #2563eb; }
     .btn-decrypt { background: #16a34a; }
@@ -108,30 +101,14 @@
       display: block;
       background: #dcfce7;
       color: #166534;
+      text-align: center;
     }
 
     .status.error {
       display: block;
       background: #fee2e2;
       color: #991b1b;
-    }
-
-    .tips {
-      margin-top: 24px;
-      background: #f3f4f6;
-      border-left: 4px solid #2563eb;
-      padding: 15px;
-      border-radius: 8px;
-      line-height: 1.8;
-      color: #374151;
-      font-size: 14px;
-display: none;
-    }
-
-    .tips code {
-      background: #e5e7eb;
-      padding: 2px 5px;
-      border-radius: 4px;
+      text-align: center;
     }
 
     @media (max-width: 600px) {
@@ -146,12 +123,12 @@ display: none;
     <h1>文字加密解密工具</h1>
 
     <div class="desc">
-      邮箱伪装版：用户名格式为 <b>3位字母 + 9位数字</b>。<br>
-      数字中随机分布信息位，外观更接近正常邮箱。
+      伪装串格式：<b>5位字母 + 12位数字 + @域名</b><br>
+      数字部分采用“随机前缀 + 数据后缀（带偏移）”方式，外观更自然。
     </div>
 
     <label for="inputText">输入内容</label>
-    <textarea id="inputText" placeholder="加密时输入原文；解密时输入完整邮箱串"></textarea>
+    <textarea id="inputText" placeholder="加密时输入原文；解密时输入完整伪装串"></textarea>
 
     <label for="secretKey">自定义密钥</label>
     <input id="secretKey" type="text" placeholder="请输入自定义密钥，明文显示" />
@@ -165,18 +142,9 @@ display: none;
     </div>
 
     <label for="resultText">输出结果</label>
-    <textarea id="resultText" readonly placeholder="这里显示加密后的邮箱伪装串，或解密后的原文"></textarea>
+    <textarea id="resultText" readonly placeholder="这里显示加密后的伪装串，或解密后的原文"></textarea>
 
     <div id="status" class="status"></div>
-
-    <div class="tips">
-      <strong>说明：</strong><br>
-      1. 每个邮箱用户名固定为 <code>3位字母 + 9位数字</code>。<br>
-      2. 每 1 个数字承载 1 bit。<br>
-      3. <code>0 bit</code> → 随机偶数 <code>0/2/4/6/8</code>。<br>
-      4. <code>1 bit</code> → 随机奇数 <code>1/3/5/7/9</code>。<br>
-      5. 多个邮箱之间用 <code>;</code> 分隔，解密时请保留完整格式。
-    </div>
   </div>
 
   <script>
@@ -184,8 +152,8 @@ display: none;
     const textDecoder = new TextDecoder();
     const PBKDF2_ITERATIONS = 200000;
     const DOMAINS = ["gmail.com", "outlook.com", "qq.com", "163.com", "yahoo.com"];
-    const BITS_PER_EMAIL = 9;
 
+    // ======== UI ========
     function showStatus(message, type = "success") {
       const status = document.getElementById("status");
       status.textContent = message;
@@ -198,6 +166,37 @@ display: none;
       status.className = "status";
     }
 
+    function clearAll() {
+      document.getElementById("inputText").value = "";
+      document.getElementById("secretKey").value = "";
+      document.getElementById("resultText").value = "";
+      clearStatus();
+    }
+
+    async function copyResult() {
+      clearStatus();
+      const result = document.getElementById("resultText").value;
+      if (!result) return showStatus("没有可复制的内容。", "error");
+      try {
+        await navigator.clipboard.writeText(result);
+        showStatus("结果已复制到剪贴板。", "success");
+      } catch {
+        const resultText = document.getElementById("resultText");
+        resultText.select();
+        document.execCommand("copy");
+        showStatus("结果已复制。", "success");
+      }
+    }
+
+    function fillResultToInput() {
+      clearStatus();
+      const result = document.getElementById("resultText").value;
+      if (!result) return showStatus("输出结果为空。", "error");
+      document.getElementById("inputText").value = result;
+      showStatus("已将输出结果填入输入框。", "success");
+    }
+
+    // ======== 基础工具 ========
     function concatBytes(...arrays) {
       let total = 0;
       for (const arr of arrays) total += arr.length;
@@ -220,17 +219,9 @@ display: none;
       );
 
       return await crypto.subtle.deriveKey(
-        {
-          name: "PBKDF2",
-          salt,
-          iterations: PBKDF2_ITERATIONS,
-          hash: "SHA-256"
-        },
+        { name: "PBKDF2", salt, iterations: PBKDF2_ITERATIONS, hash: "SHA-256" },
         passwordKey,
-        {
-          name: "AES-GCM",
-          length: 256
-        },
+        { name: "AES-GCM", length: 256 },
         false,
         ["encrypt", "decrypt"]
       );
@@ -239,57 +230,133 @@ display: none;
     function bytesToBits(bytes) {
       let bits = "";
       for (const byte of bytes) {
-        for (let i = 7; i >= 0; i--) {
-          bits += ((byte >> i) & 1) ? "1" : "0";
-        }
+        for (let i = 7; i >= 0; i--) bits += ((byte >> i) & 1) ? "1" : "0";
       }
       return bits;
     }
 
     function bitsToBytes(bits) {
-      if (bits.length % 8 !== 0) {
-        throw new Error("比特长度不是 8 的倍数。");
-      }
+      if (bits.length % 8 !== 0) throw new Error("比特长度不是 8 的倍数。");
       const bytes = new Uint8Array(bits.length / 8);
       for (let i = 0; i < bytes.length; i++) {
-        let value = 0;
-        for (let j = 0; j < 8; j++) {
-          value = (value << 1) | (bits[i * 8 + j] === "1" ? 1 : 0);
-        }
-        bytes[i] = value;
+        let v = 0;
+        for (let j = 0; j < 8; j++) v = (v << 1) | (bits[i * 8 + j] === "1" ? 1 : 0);
+        bytes[i] = v;
       }
       return bytes;
     }
 
     function intToBytes32(n) {
-      const b = new Uint8Array(4);
-      b[0] = (n >>> 24) & 255;
-      b[1] = (n >>> 16) & 255;
-      b[2] = (n >>> 8) & 255;
-      b[3] = n & 255;
-      return b;
+      return new Uint8Array([(n >>> 24) & 255, (n >>> 16) & 255, (n >>> 8) & 255, n & 255]);
     }
 
     function bytesToInt32(bytes) {
-      if (bytes.length < 4) throw new Error("长度头不足 4 字节。");
       return ((bytes[0] << 24) >>> 0) | (bytes[1] << 16) | (bytes[2] << 8) | bytes[3];
-    }
-
-    function randomLetter() {
-      const letters = "abcdefghijklmnopqrstuvwxyz";
-      return letters[Math.floor(Math.random() * letters.length)];
-    }
-
-    function randomEvenDigit() {
-      return String([0, 2, 4, 6, 8][Math.floor(Math.random() * 5)]);
-    }
-
-    function randomOddDigit() {
-      return String([1, 3, 5, 7, 9][Math.floor(Math.random() * 5)]);
     }
 
     function randomDomain() {
       return DOMAINS[Math.floor(Math.random() * DOMAINS.length)];
+    }
+
+    // ======== 混合编码参数 ========
+    const LETTER_BITS_LEN = 20;   // 5个字母 * 4bit
+    const DIGIT_BITS_LEN  = 24;   // 剩余24bit
+    const CHUNK_BITS_LEN  = 44;   // 每块44bit
+    const PREFIX_LEN      = 4;    // 随机前缀4位
+    const SUFFIX_LEN      = 8;    // 数据后缀8位（可完整承载24bit）
+    const DIGIT_TOTAL_LEN = PREFIX_LEN + SUFFIX_LEN; // 12
+
+    // 用偏移量把 24bit 数据映射到 [10^8 - 2^24, 10^8 - 1]
+    // 保证后缀永远是 8 位，且首位非零
+    const SUFFIX_OFFSET = (10n ** BigInt(SUFFIX_LEN)) - (1n << BigInt(DIGIT_BITS_LEN));
+    // = 83222784n
+
+    function bitsToLetter4(bits4) {
+      const n = parseInt(bits4.padEnd(4, "0"), 2);
+      return String.fromCharCode(97 + n); // a~p
+    }
+
+    function letterToBits4(ch) {
+      const code = ch.toLowerCase().charCodeAt(0);
+      if (code < 97 || code > 112) throw new Error("字母部分非法，只允许 a~p。");
+      return (code - 97).toString(2).padStart(4, "0");
+    }
+
+    function bitsToBigInt(bits) {
+      let n = 0n;
+      for (const b of bits) n = (n << 1n) | (b === "1" ? 1n : 0n);
+      return n;
+    }
+
+    function bigIntToBits(n, bitLen) {
+      let bits = "";
+      for (let i = bitLen - 1; i >= 0; i--) {
+        bits += ((n >> BigInt(i)) & 1n) ? "1" : "0";
+      }
+      return bits;
+    }
+
+    // 随机前缀：首位 1~9，避免整串以 0 开头
+    function randomDigits(len) {
+      let s = String(1 + Math.floor(Math.random() * 9));
+      for (let i = 1; i < len; i++) {
+        s += Math.floor(Math.random() * 10).toString();
+      }
+      return s;
+    }
+
+    // 编码：5位字母 + 4位随机前缀 + 8位数据后缀
+    function encodeBitStreamToEmailChunk(bitStream) {
+      const chunkBits = bitStream.slice(0, CHUNK_BITS_LEN).padEnd(CHUNK_BITS_LEN, "0");
+
+      // 前20bit -> 5位字母
+      const letterBits = chunkBits.slice(0, LETTER_BITS_LEN);
+      let letters = "";
+      for (let i = 0; i < 5; i++) {
+        letters += bitsToLetter4(letterBits.slice(i * 4, i * 4 + 4));
+      }
+
+      // 后24bit -> 8位数据后缀（加偏移量，避免前导0）
+      const digitBits = chunkBits.slice(LETTER_BITS_LEN, LETTER_BITS_LEN + DIGIT_BITS_LEN);
+      const digitValue = bitsToBigInt(digitBits);
+      const displayValue = digitValue + SUFFIX_OFFSET;
+      const suffix = displayValue.toString(10).padStart(SUFFIX_LEN, "0");
+
+      // 随机前缀
+      const prefix = randomDigits(PREFIX_LEN);
+
+      return letters + prefix + suffix;
+    }
+
+    // 解码：忽略前 PREFIX_LEN 位随机前缀，取后 SUFFIX_LEN 位作为数据
+    function decodeEmailChunkToBits(localPart) {
+      if (localPart.length < 5 + DIGIT_TOTAL_LEN) {
+        throw new Error("用户名过短。");
+      }
+
+      const letters = localPart.slice(0, 5);
+      const digitsPart = localPart.slice(5, 5 + DIGIT_TOTAL_LEN);
+
+      if (!new RegExp(`^\\d{${DIGIT_TOTAL_LEN}}$`).test(digitsPart)) {
+        throw new Error("数字部分非法，只允许 0~9。");
+      }
+
+      const suffix = digitsPart.slice(PREFIX_LEN); // 后 SUFFIX_LEN 位
+
+      // 字母区恢复20bit
+      let bits = "";
+      for (const ch of letters) bits += letterToBits4(ch);
+
+      // 后缀去偏移量，恢复原始 24bit 数值
+      const displayValue = BigInt(suffix);
+      const digitValue = displayValue - SUFFIX_OFFSET;
+      if (digitValue < 0n || digitValue >= (1n << BigInt(DIGIT_BITS_LEN))) {
+        throw new Error("数据后缀数值越界。");
+      }
+      const digitBits = bigIntToBits(digitValue, DIGIT_BITS_LEN);
+
+      bits += digitBits;
+      return bits;
     }
 
     function encodeBitsAsEmails(bits) {
@@ -297,32 +364,15 @@ display: none;
       const payloadBits = bytesToBits(bitLenHeader) + bits;
 
       const paddedBits = payloadBits.padEnd(
-        Math.ceil(payloadBits.length / BITS_PER_EMAIL) * BITS_PER_EMAIL,
+        Math.ceil(payloadBits.length / CHUNK_BITS_LEN) * CHUNK_BITS_LEN,
         "0"
       );
 
       const emails = [];
-
-      for (let i = 0; i < paddedBits.length; i += BITS_PER_EMAIL) {
-        const chunk = paddedBits.slice(i, i + BITS_PER_EMAIL);
-
-        let local = "";
-        local += randomLetter();
-        local += randomLetter();
-        local += randomLetter();
-
-        for (let j = 0; j < chunk.length; j++) {
-          if (chunk[j] === "0") {
-            local += randomEvenDigit();
-          } else {
-            local += randomOddDigit();
-          }
-        }
-
-        const domain = randomDomain();
-        emails.push(`${local}@${domain}`);
+      for (let i = 0; i < paddedBits.length; i += CHUNK_BITS_LEN) {
+        const local = encodeBitStreamToEmailChunk(paddedBits.slice(i, i + CHUNK_BITS_LEN));
+        emails.push(`${local}@${randomDomain()}`);
       }
-
       return emails.join(";");
     }
 
@@ -331,42 +381,22 @@ display: none;
       if (emails.length === 0) throw new Error("没有检测到邮箱数据。");
 
       let bits = "";
-
       for (const email of emails) {
         const atIndex = email.indexOf("@");
-        if (atIndex === -1) throw new Error("邮箱格式错误，缺少 @。");
-
-        const local = email.slice(0, atIndex);
-        const digits = local.match(/\d/g);
-        if (!digits || digits.length !== 9) {
-          throw new Error("邮箱用户名数字长度不正确，必须是 9 位数字。");
-        }
-
-        for (const d of digits) {
-          if (["0", "2", "4", "6", "8"].includes(d)) {
-            bits += "0";
-          } else if (["1", "3", "5", "7", "9"].includes(d)) {
-            bits += "1";
-          } else {
-            throw new Error("邮箱数据中包含非法数字。");
-          }
-        }
+        if (atIndex === -1) throw new Error("格式错误，缺少 @。");
+        bits += decodeEmailChunkToBits(email.slice(0, atIndex));
       }
-
       return bits;
     }
 
+    // ======== 主功能 ========
     async function encryptText() {
       clearStatus();
       try {
-        if (!window.crypto || !crypto.subtle) {
-          showStatus("当前浏览器不支持 Web Crypto API。", "error");
-          return;
-        }
+        if (!window.crypto || !crypto.subtle) return showStatus("当前浏览器不支持 Web Crypto API。", "error");
 
         const plainText = document.getElementById("inputText").value;
         const password = document.getElementById("secretKey").value;
-
         if (!plainText) return showStatus("请输入需要加密的原文。", "error");
         if (!password) return showStatus("请输入自定义密钥。", "error");
 
@@ -380,14 +410,11 @@ display: none;
           textEncoder.encode(plainText)
         );
 
-        const encryptedBytes = new Uint8Array(encryptedBuffer);
-        const packed = concatBytes(salt, iv, encryptedBytes);
-
-        const bits = bytesToBits(packed);
-        const disguised = encodeBitsAsEmails(bits);
+        const packed = concatBytes(salt, iv, new Uint8Array(encryptedBuffer));
+        const disguised = encodeBitsAsEmails(bytesToBits(packed));
 
         document.getElementById("resultText").value = disguised;
-        showStatus("加密成功。已生成邮箱伪装串。", "success");
+        showStatus("加密成功。", "success");
       } catch (error) {
         console.error(error);
         showStatus("加密失败：" + error.message, "error");
@@ -397,89 +424,42 @@ display: none;
     async function decryptText() {
       clearStatus();
       try {
-        if (!window.crypto || !crypto.subtle) {
-          showStatus("当前浏览器不支持 Web Crypto API。", "error");
-          return;
-        }
+        if (!window.crypto || !crypto.subtle) return showStatus("当前浏览器不支持 Web Crypto API。", "error");
 
         const text = document.getElementById("inputText").value;
         const password = document.getElementById("secretKey").value;
-
-        if (!text) return showStatus("请输入完整的邮箱伪装串。", "error");
+        if (!text) return showStatus("请输入完整的伪装串。", "error");
         if (!password) return showStatus("请输入自定义密钥。", "error");
 
         const allBits = decodeEmailsToBits(text);
+        if (allBits.length < 32) return showStatus("数据太短，无法读取长度头。", "error");
 
-        if (allBits.length < 32) {
-          return showStatus("数据太短，无法读取长度头。", "error");
-        }
-
-        const headerBits = allBits.slice(0, 32);
-        const headerBytes = bitsToBytes(headerBits);
-        const payloadBitLen = bytesToInt32(headerBytes);
-
+        const payloadBitLen = bytesToInt32(bitsToBytes(allBits.slice(0, 32)));
         const totalNeeded = 32 + payloadBitLen;
-        if (allBits.length < totalNeeded) {
-          return showStatus("邮箱数据不完整，实际比特数不足。", "error");
-        }
+        if (allBits.length < totalNeeded) return showStatus("伪装串数据不完整。", "error");
+        if (payloadBitLen % 8 !== 0) return showStatus("长度头异常，数据可能损坏。", "error");
 
-        const payloadBits = allBits.slice(32, totalNeeded);
-        const packed = bitsToBytes(payloadBits);
-
-        if (packed.length < 16 + 12 + 16) {
-          return showStatus("密文长度不正确，可能格式损坏。", "error");
-        }
+        const packed = bitsToBytes(allBits.slice(32, totalNeeded));
+        if (packed.length < 28) return showStatus("密文长度不正确。", "error");
 
         const salt = packed.slice(0, 16);
         const iv = packed.slice(16, 28);
         const cipherBytes = packed.slice(28);
 
         const aesKey = await deriveKey(password, salt);
+        const decryptedBuffer = await crypto.subtle.decrypt({ name: "AES-GCM", iv }, aesKey, cipherBytes);
 
-        const decryptedBuffer = await crypto.subtle.decrypt(
-          { name: "AES-GCM", iv },
-          aesKey,
-          cipherBytes
-        );
-
-        const plainText = textDecoder.decode(decryptedBuffer);
-        document.getElementById("resultText").value = plainText;
+        document.getElementById("resultText").value = textDecoder.decode(decryptedBuffer);
         showStatus("解密成功。", "success");
       } catch (error) {
         console.error(error);
-        showStatus("解密失败：密钥错误、邮箱格式损坏，或数据不完整。", "error");
+        showStatus("解密失败：密钥错误、格式损坏，或数据不完整。", "error");
       }
-    }
-
-    async function copyResult() {
-      clearStatus();
-      const result = document.getElementById("resultText").value;
-      if (!result) return showStatus("没有可复制的内容。", "error");
-      try {
-        await navigator.clipboard.writeText(result);
-        showStatus("结果已复制到剪贴板。", "success");
-      } catch (error) {
-        const resultText = document.getElementById("resultText");
-        resultText.select();
-        document.execCommand("copy");
-        showStatus("结果已复制。", "success");
-      }
-    }
-
-    function fillResultToInput() {
-      clearStatus();
-      const result = document.getElementById("resultText").value;
-      if (!result) return showStatus("输出结果为空。", "error");
-      document.getElementById("inputText").value = result;
-      showStatus("已将输出结果填入输入框。", "success");
-    }
-
-    function clearAll() {
-      document.getElementById("inputText").value = "";
-      document.getElementById("secretKey").value = "";
-      document.getElementById("resultText").value = "";
-      clearStatus();
     }
   </script>
 </body>
 </html>
+
+
+
+
